@@ -1,0 +1,10 @@
+{
+  "domain": "nsw_carpark",
+  "name": "NSW Car Park",
+  "codeowners": ["@your_github_username"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "[invalid url, do not cite]",
+  "iot_class": "cloud_polling",
+  "version": "1.0.0"
+}
