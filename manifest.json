@@ -4,7 +4,9 @@
   "codeowners": ["@your_github_username"],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "[invalid url, do not cite]",
+  "documentation": "https://github.com/your_github_username/nsw-carpark-ha",
   "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/your_github_username/nsw-carpark-ha/issues",
+  "requirements": ["aiohttp>=3.8.0"],
   "version": "1.0.0"
 }
