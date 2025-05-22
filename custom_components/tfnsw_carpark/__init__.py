@@ -1,20 +1,34 @@
-import homeassistant.helpers.config_validation as cv
-import voluptuous as vol
-from homeassistant import config_entries, core
 
+import logging
+from homeassistant import config_entries
+from homeassistant.core import HomeAssistant
+
+_LOGGER = logging.getLogger(__name__)
 DOMAIN = "tfnsw_carpark"
 
-CONFIG_SCHEMA = vol.Schema({DOMAIN: vol.Schema({}, extra=vol.ALLOW_EXTRA)}, extra=vol.ALLOW_EXTRA)
+async def async_setup_entry(hass: HomeAssistant, entry: config_entries.ConfigEntry) -> bool:
+    _LOGGER.debug("Entering async_setup_entry in __init__.py for TfNSW Carpark")
 
-async def async_setup(hass: core.HomeAssistant, config: dict):
+    # Check if setup is complete
+    setup_complete = entry.options.get("setup_complete", False)
+    if not setup_complete:
+        _LOGGER.debug("Setup not complete, triggering options flow")
+        hass.async_create_task(
+            hass.config_entries.options.async_init(entry.entry_id)
+        )
+        return True
+
+    # Proceed with setup if car parks are selected
+    car_parks = entry.options.get("car_parks", [])
+    _LOGGER.debug(f"Setting up sensors with car parks: {car_parks}")
+    if not car_parks:
+        _LOGGER.warning("No car parks selected in options, no sensors will be created")
+        return True
+
+    # Forward the setup to the sensor platform
+    await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
     return True
 
-async def async_setup_entry(hass: core.HomeAssistant, entry: config_entries.ConfigEntry):
-    hass.async_create_task(
-        hass.config_entries.async_forward_entry_setup(entry, "sensor")
-    )
-    return True
-
-async def async_unload_entry(hass: core.HomeAssistant, entry: config_entries.ConfigEntry):
-    unload_ok = await hass.config_entries.async_forward_entry_unload(entry, "sensor")
-    return unload_ok
+async def async_unload_entry(hass: HomeAssistant, entry: config_entries.ConfigEntry) -> bool:
+    """Unload a config entry."""
+    return await hass.config_entries.async_unload_platforms(entry, ["sensor"])
