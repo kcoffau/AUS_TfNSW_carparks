@@ -13,19 +13,26 @@ class TfNSWCarparkConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_validate_api_key(self, api_key: str) -> bool:
         """Validate API key by fetching car park list."""
-        url = "https://api.transport.nsw.gov.au/v1/carpark"  # Using the working endpoint
+        url = "https://api.transport.nsw.gov.au/v1/carpark"
         headers = {"Authorization": f"apikey {api_key}"}
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(url, headers=headers) as response:
+                    text = await response.text()
+                    _LOGGER.debug(f"API response for validation: {text}")
                     if response.status == 200:
                         data = await response.json()
-                        return bool(data.get("facilities"))
+                        # Expecting a dictionary of facility_id: facility_name
+                        if isinstance(data, dict) and data:
+                            return True
+                        else:
+                            _LOGGER.error("Unexpected response format: not a dictionary or empty")
+                            return False
                     elif response.status == 401:
                         _LOGGER.error("Authentication failed: Invalid API key")
                         return False
                     else:
-                        _LOGGER.error(f"API request failed with status {response.status}: {await response.text()}")
+                        _LOGGER.error(f"API request failed with status {response.status}: {text}")
                         return False
         except Exception as e:
             _LOGGER.error(f"Error validating API key: {e}")
@@ -58,10 +65,14 @@ class TfNSWCarparkConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     async with session.get(url, headers=headers) as response:
                         if response.status == 200:
                             data = await response.json()
+                            _LOGGER.debug(f"Car parks response: {data}")
+                            # Transform dictionary to list of {value, label}
                             car_parks_options = [
-                                {"value": str(facility.get("facility_id")), "label": facility.get("facility_name")}
-                                for facility in data.get("facilities", [])
+                                {"value": str(facility_id), "label": facility_name}
+                                for facility_id, facility_name in data.items()
                             ]
+                        else:
+                            errors["base"] = "api_error"
             except Exception as e:
                 _LOGGER.error(f"Error fetching car parks: {e}")
                 errors["base"] = "api_error"
@@ -104,10 +115,13 @@ class TfNSWCarparkConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 async with session.get(url, headers=headers) as response:
                     if response.status == 200:
                         data = await response.json()
+                        _LOGGER.debug(f"Car parks response (options): {data}")
                         car_parks_options = [
-                            {"value": str(facility.get("facility_id")), "label": facility.get("facility_name")}
-                            for facility in data.get("facilities", [])
+                            {"value": str(facility_id), "label": facility_name}
+                            for facility_id, facility_name in data.items()
                         ]
+                    else:
+                        errors["base"] = "api_error"
         except Exception as e:
             _LOGGER.error(f"Error fetching car parks: {e}")
             errors["base"] = "api_error"
@@ -117,10 +131,10 @@ class TfNSWCarparkConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema(
                 {
                     vol.Optional("car_parks", default=current_car_parks): selector.SelectSelector(
-                        selector.SelectSelectorMode.DROPDOWN,
                         selector.SelectSelectorConfig(
                             options=car_parks_options,
                             multiple=True,
+                            mode=selector.SelectSelectorMode.DROPDOWN
                         )
                     ),
                 }
