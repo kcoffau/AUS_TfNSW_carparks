@@ -29,18 +29,24 @@ class TfNSWCarparkDataUpdateCoordinator(DataUpdateCoordinator):
     async def _async_update_data(self):
         url = "https://api.transport.nsw.gov.au/v1/carpark"
         headers = {"Authorization": f"apikey {self.api_key}"}
-        params = {"facility_id": ",".join(map(str, self.facility_ids))} if self.facility_ids else {}
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=headers, params=params) as response:
-                    if response.status == 200:
-                        return await response.json()
-                    else:
-                        _LOGGER.error(f"API request failed with status {response.status}")
-                        raise UpdateFailed(f"API request failed with status {response.status}")
-        except Exception as e:
-            _LOGGER.error(f"Error fetching data: {e}")
-            raise UpdateFailed(f"Error fetching data: {e}")
+        # Fetch data for each facility individually
+        facilities_data = []
+        for facility_id in self.facility_ids:
+            params = {"facility": str(facility_id)}
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(url, headers=headers, params=params) as response:
+                        if response.status == 200:
+                            facility_data = await response.json()
+                            _LOGGER.debug(f"Facility {facility_id} response: {facility_data}")
+                            facilities_data.append(facility_data)
+                        else:
+                            _LOGGER.error(f"API request failed for facility {facility_id} with status {response.status}")
+                            raise UpdateFailed(f"API request failed with status {response.status}")
+            except Exception as e:
+                _LOGGER.error(f"Error fetching data for facility {facility_id}: {e}")
+                raise UpdateFailed(f"Error fetching data: {e}")
+        return {"facilities": facilities_data}
 
 class TfNSWCarparkSensor(SensorEntity):
     def __init__(self, coordinator: TfNSWCarparkDataUpdateCoordinator, facility_id: int, facility_name: str):
@@ -59,10 +65,10 @@ class TfNSWCarparkSensor(SensorEntity):
     def state(self):
         if self.coordinator.data and "facilities" in self.coordinator.data:
             for facility in self.coordinator.data["facilities"]:
-                if facility.get("facility_id") == self._facility_id:
+                if str(facility.get("facility_id")) == str(self._facility_id):
                     occupancy = facility.get("occupancy", {})
-                    total = occupancy.get("total", 0)
-                    spots = facility.get("spots", 0)
+                    total = int(occupancy.get("total", 0))
+                    spots = int(facility.get("spots", 0))
                     return spots - total
         return None
 
@@ -85,11 +91,17 @@ async def async_setup_entry(
     await coordinator.async_refresh()
 
     facility_names = {}
-    if coordinator.data and "facilities" in coordinator.data:
-        for facility in coordinator.data["facilities"]:
-            facility_id = facility.get("facility_id")
-            if facility_id in car_parks:
-                facility_names[facility_id] = facility.get("facility_name", f"Car Park {facility_id}")
+    url = "https://api.transport.nsw.gov.au/v1/carpark"
+    headers = {"Authorization": f"apikey {api_key}"}
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    for facility_id in car_parks:
+                        facility_names[facility_id] = data.get(str(facility_id), f"Car Park {facility_id}")
+    except Exception as e:
+        _LOGGER.error(f"Error fetching facility names: {e}")
 
     entities = [
         TfNSWCarparkSensor(coordinator, facility_id, facility_names.get(facility_id, f"Car Park {facility_id}"))
