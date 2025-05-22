@@ -27,7 +27,7 @@ class TfNSWCarparkDataUpdateCoordinator(DataUpdateCoordinator):
         )
 
     async def _async_update_data(self):
-        url = "https://api.transport.nsw.gov.au/v1/carpark/occupancy"
+        url = "https://api.transport.nsw.gov.au/v1/carpark"
         headers = {"Authorization": f"apikey {self.api_key}"}
         params = {"facility_id": ",".join(map(str, self.facility_ids))} if self.facility_ids else {}
         try:
