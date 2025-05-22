@@ -2,7 +2,7 @@ import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
 from homeassistant import config_entries, core
 
-DOMAIN = "nsw_carpark"
+DOMAIN = "tfnsw_carpark"
 
 CONFIG_SCHEMA = vol.Schema({DOMAIN: vol.Schema({}, extra=vol.ALLOW_EXTRA)}, extra=vol.ALLOW_EXTRA)
 
