@@ -1,9 +1,11 @@
 import voluptuous as vol
-from homeassistant import config_entries
+from homeassistant import config_entries, core
 from homeassistant.const import CONF_API_KEY
 from homeassistant.helpers import selector
 import aiohttp
+import logging
 
+_LOGGER = logging.getLogger(__name__)
 DOMAIN = "tfnsw_carpark"
 
 class TfNSWCarparkConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -11,13 +13,22 @@ class TfNSWCarparkConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_validate_api_key(self, api_key: str) -> bool:
         """Validate API key by fetching car park list."""
-        url = "https://api.transport.nsw.gov.au/v1/carpark/occupancy"
+        url = "https://api.transport.nsw.gov.au/v1/carpark"  # Using the working endpoint
         headers = {"Authorization": f"apikey {api_key}"}
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(url, headers=headers) as response:
-                    return response.status == 200
-        except Exception:
+                    if response.status == 200:
+                        data = await response.json()
+                        return bool(data.get("facilities"))
+                    elif response.status == 401:
+                        _LOGGER.error("Authentication failed: Invalid API key")
+                        return False
+                    else:
+                        _LOGGER.error(f"API request failed with status {response.status}: {await response.text()}")
+                        return False
+        except Exception as e:
+            _LOGGER.error(f"Error validating API key: {e}")
             return False
 
     async def async_step_user(self, user_input=None):
@@ -40,7 +51,7 @@ class TfNSWCarparkConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     errors["base"] = "invalid_car_parks"
 
         if user_input and CONF_API_KEY in user_input:
-            url = "https://api.transport.nsw.gov.au/v1/carpark/occupancy"
+            url = "https://api.transport.nsw.gov.au/v1/carpark"
             headers = {"Authorization": f"apikey {user_input[CONF_API_KEY]}"}
             try:
                 async with aiohttp.ClientSession() as session:
@@ -51,7 +62,8 @@ class TfNSWCarparkConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                                 {"value": str(facility.get("facility_id")), "label": facility.get("facility_name")}
                                 for facility in data.get("facilities", [])
                             ]
-            except Exception:
+            except Exception as e:
+                _LOGGER.error(f"Error fetching car parks: {e}")
                 errors["base"] = "api_error"
 
         return self.async_show_form(
@@ -85,7 +97,7 @@ class TfNSWCarparkConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         current_car_parks = [str(facility_id) for facility_id in self.config_entry.options.get("car_parks", [])]
         car_parks_options = []
         api_key = self.config_entry.data[CONF_API_KEY]
-        url = "https://api.transport.nsw.gov.au/v1/carpark/occupancy"
+        url = "https://api.transport.nsw.gov.au/v1/carpark"
         headers = {"Authorization": f"apikey {api_key}"}
         try:
             async with aiohttp.ClientSession() as session:
@@ -96,7 +108,8 @@ class TfNSWCarparkConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             {"value": str(facility.get("facility_id")), "label": facility.get("facility_name")}
                             for facility in data.get("facilities", [])
                         ]
-        except Exception:
+        except Exception as e:
+            _LOGGER.error(f"Error fetching car parks: {e}")
             errors["base"] = "api_error"
 
         return self.async_show_form(
@@ -104,10 +117,10 @@ class TfNSWCarparkConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema(
                 {
                     vol.Optional("car_parks", default=current_car_parks): selector.SelectSelector(
+                        selector.SelectSelectorMode.DROPDOWN,
                         selector.SelectSelectorConfig(
                             options=car_parks_options,
                             multiple=True,
-                            mode=selector.SelectSelectorMode.DROPDOWN
                         )
                     ),
                 }
