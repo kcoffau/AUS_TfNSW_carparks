@@ -13,28 +13,28 @@ import aiohttp
 
 _LOGGER = logging.getLogger(__name__)
 
-SCAN_INTERVAL = timedelta(minutes=5)  # Poll every 5 minutes
+SCAN_INTERVAL = timedelta(minutes=5)
 
-class NswCarparkDataUpdateCoordinator(DataUpdateCoordinator):
+class TfNSWCarparkDataUpdateCoordinator(DataUpdateCoordinator):
     def __init__(self, hass: HomeAssistant, api_key: str, facility_ids: list):
         self.api_key = api_key
         self.facility_ids = facility_ids
         super().__init__(
             hass,
             _LOGGER,
-            name="nsw_carpark",
+            name="tfnsw_carpark",
             update_interval=SCAN_INTERVAL,
         )
 
     async def _async_update_data(self):
-        url = "https://api.transport.nsw.gov.au/v1/transport/carparks"  # Example endpoint, adjust as needed
+        url = "https://api.transport.nsw.gov.au/v1/carpark/occupancy"
         headers = {"Authorization": f"apikey {self.api_key}"}
+        params = {"facility_id": ",".join(map(str, self.facility_ids))} if self.facility_ids else {}
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=headers) as response:
+                async with session.get(url, headers=headers, params=params) as response:
                     if response.status == 200:
-                        data = await response.json()
-                        return data
+                        return await response.json()
                     else:
                         _LOGGER.error(f"API request failed with status {response.status}")
                         raise UpdateFailed(f"API request failed with status {response.status}")
@@ -42,13 +42,12 @@ class NswCarparkDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.error(f"Error fetching data: {e}")
             raise UpdateFailed(f"Error fetching data: {e}")
 
-class NswCarparkSensor(SensorEntity):
-    def __init__(self, coordinator: NswCarparkDataUpdateCoordinator, facility_id: int):
+class TfNSWCarparkSensor(SensorEntity):
+    def __init__(self, coordinator: TfNSWCarparkDataUpdateCoordinator, facility_id: int, facility_name: str):
         self.coordinator = coordinator
         self._facility_id = facility_id
-        # Fetch name dynamically from API data
-        self._name = f"Car Park {facility_id}"  # Placeholder, update based on API response
-        self._attr_unique_id = f"nsw_carpark_{facility_id}"
+        self._name = facility_name or f"Car Park {facility_id}"
+        self._attr_unique_id = f"tfnsw_carpark_{facility_id}"
         self._attr_device_class = "measurement"
         self._attr_unit_of_measurement = "spots"
 
@@ -82,10 +81,18 @@ async def async_setup_entry(
 ):
     api_key = entry.data[CONF_API_KEY]
     car_parks = entry.options.get("car_parks", [])
-    coordinator = NswCarparkDataUpdateCoordinator(hass, api_key, car_parks)
+    coordinator = TfNSWCarparkDataUpdateCoordinator(hass, api_key, car_parks)
     await coordinator.async_refresh()
 
+    facility_names = {}
+    if coordinator.data and "facilities" in coordinator.data:
+        for facility in coordinator.data["facilities"]:
+            facility_id = facility.get("facility_id")
+            if facility_id in car_parks:
+                facility_names[facility_id] = facility.get("facility_name", f"Car Park {facility_id}")
+
     entities = [
-        NswCarparkSensor(coordinator, facility_id) for facility_id in car_parks
+        TfNSWCarparkSensor(coordinator, facility_id, facility_names.get(facility_id, f"Car Park {facility_id}"))
+        for facility_id in car_parks
     ]
     async_add_entities(entities)
