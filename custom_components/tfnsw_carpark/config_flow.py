@@ -1,105 +1,117 @@
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_API_KEY
+from homeassistant.helpers import selector
 import aiohttp
 
-DOMAIN = "nsw_carpark"
+DOMAIN = "tfnsw_carpark"
 
-class NswCarparkConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+class TfNSWCarparkConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
+    async def async_validate_api_key(self, api_key: str) -> bool:
+        """Validate API key by fetching car park list."""
+        url = "https://api.transport.nsw.gov.au/v1/carpark/occupancy"
+        headers = {"Authorization": f"apikey {api_key}"}
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, headers=headers) as response:
+                    return response.status == 200
+        except Exception:
+            return False
+
     async def async_step_user(self, user_input=None):
+        errors = {}
+        car_parks_options = []
         if user_input is not None:
             api_key = user_input[CONF_API_KEY]
-            car_parks_str = user_input["car_parks"]
+            if not await self.async_validate_api_key(api_key):
+                errors["base"] = "invalid_api_key"
+            else:
+                car_parks = user_input.get("car_parks", [])
+                try:
+                    car_parks_list = [int(facility_id) for facility_id in car_parks]
+                    return self.async_create_entry(
+                        title="TfNSW Car Park",
+                        data={CONF_API_KEY: api_key},
+                        options={"car_parks": car_parks_list},
+                    )
+                except ValueError:
+                    errors["base"] = "invalid_car_parks"
+
+        if user_input and CONF_API_KEY in user_input:
+            url = "https://api.transport.nsw.gov.au/v1/carpark/occupancy"
+            headers = {"Authorization": f"apikey {user_input[CONF_API_KEY]}"}
             try:
-                car_parks_list = [int(id.strip()) for id in car_parks_str.split(",")]
-            except ValueError:
-                return self.async_show_form(
-                    step_id="user",
-                    errors={"base": "invalid_car_parks"},
-                    data_schema=vol.Schema(
-                        {
-                            vol.Required(CONF_API_KEY): str,
-                            vol.Required("car_parks"): str,
-                        }
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(url, headers=headers) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            car_parks_options = [
+                                {"value": str(facility.get("facility_id")), "label": facility.get("facility_name")}
+                                for facility in data.get("facilities", [])
+                            ]
+            except Exception:
+                errors["base"] = "api_error"
+
+        return self.async_show_form(
+            step_id="user",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_API_KEY): str,
+                    vol.Optional("car_parks"): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=car_parks_options,
+                            multiple=True,
+                            mode=selector.SelectSelectorMode.DROPDOWN
+                        )
                     ),
-                )
+                }
+            ),
+            errors=errors,
+            description_placeholders={"car_parks_hint": "Select car parks or leave blank to add later."},
+        )
 
-            return self.async_create_entry(
-                title="NSW Car Park",
-                data={CONF_API_KEY: api_key},
-                options={"car_parks": car_parks_list},
-            )
+    async def async_step_options(self, user_input=None):
+        errors = {}
+        if user_input is not None:
+            car_parks = user_input.get("car_parks", [])
+            try:
+                car_parks_list = [int(facility_id) for facility_id in car_parks]
+                return self.async_create_entry(title="Options", data={"car_parks": car_parks_list})
+            except ValueError:
+                errors["base"] = "invalid_car_parks"
 
-        # Fetch car park list dynamically
-        url = "https://api.transport.nsw.gov.au/v1/transport/carparks"  # Example endpoint, adjust as needed
-        headers = {"Authorization": f"apikey {self.hass.data.get('api_key', '')}"}
+        current_car_parks = [str(facility_id) for facility_id in self.config_entry.options.get("car_parks", [])]
+        car_parks_options = []
+        api_key = self.config_entry.data[CONF_API_KEY]
+        url = "https://api.transport.nsw.gov.au/v1/carpark/occupancy"
+        headers = {"Authorization": f"apikey {api_key}"}
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(url, headers=headers) as response:
                     if response.status == 200:
                         data = await response.json()
-                        car_parks = data.get("facilities", [])
-                        # Present car parks in UI (simplified, actual implementation may use multi-select)
-                        return self.async_show_form(
-                            step_id="user",
-                            data_schema=vol.Schema(
-                                {
-                                    vol.Required(CONF_API_KEY): str,
-                                    vol.Required("car_parks"): str,
-                                }
-                            ),
-                        )
-                    else:
-                        return self.async_show_form(
-                            step_id="user",
-                            errors={"base": "api_error"},
-                            data_schema=vol.Schema(
-                                {
-                                    vol.Required(CONF_API_KEY): str,
-                                    vol.Required("car_parks"): str,
-                                }
-                            ),
-                        )
-        except Exception as e:
-            return self.async_show_form(
-                step_id="user",
-                errors={"base": "connection_error"},
-                data_schema=vol.Schema(
-                    {
-                        vol.Required(CONF_API_KEY): str,
-                        vol.Required("car_parks"): str,
-                    }
-                ),
-            )
-
-    async def async_step_options(self, user_input=None):
-        if user_input is not None:
-            car_parks_str = user_input["car_parks"]
-            try:
-                car_parks_list = [int(id.strip()) for id in car_parks_str.split(",")]
-            except ValueError:
-                return self.async_show_form(
-                    step_id="options",
-                    errors={"base": "invalid_car_parks"},
-                    data_schema=vol.Schema(
-                        {
-                            vol.Required("car_parks"): str,
-                        }
-                    ),
-                )
-
-            return self.async_create_entry(title="Options", data={"car_parks": car_parks_list})
-
-        current_car_parks = self.config_entry.options.get("car_parks", [])
-        current_car_parks_str = ",".join(map(str, current_car_parks))
+                        car_parks_options = [
+                            {"value": str(facility.get("facility_id")), "label": facility.get("facility_name")}
+                            for facility in data.get("facilities", [])
+                        ]
+        except Exception:
+            errors["base"] = "api_error"
 
         return self.async_show_form(
             step_id="options",
             data_schema=vol.Schema(
                 {
-                    vol.Required("car_parks", default=current_car_parks_str): str,
+                    vol.Optional("car_parks", default=current_car_parks): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=car_parks_options,
+                            multiple=True,
+                            mode=selector.SelectSelectorMode.DROPDOWN
+                        )
+                    ),
                 }
             ),
+            errors=errors,
+            description_placeholders={"car_parks_hint": "Select car parks to monitor."},
         )
