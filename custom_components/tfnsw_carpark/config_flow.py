@@ -201,7 +201,7 @@ class TfNSWCarparkOptionsFlowHandler(config_entries.OptionsFlowWithConfigEntry):
             car_parks = user_input.get("car_parks", [])
             try:
                 car_parks_list = [int(facility_id) for facility_id in car_parks if facility_id and str(facility_id).isdigit()]
-                options = self.options.copy()  # Use self.options instead of self.config_entry.options
+                options = self.options.copy()
                 if not car_parks_list:
                     _LOGGER.debug("No car parks selected, saving empty list")
                     options["car_parks"] = []
@@ -283,14 +283,3 @@ class TfNSWCarparkOptionsFlowHandler(config_entries.OptionsFlowWithConfigEntry):
                         )
                     ),
                 }
-            ),
-            errors=errors,
-            description_placeholders={"car_parks_hint": "Select car parks to monitor."},
-        )
-
-    async def async_fetch_car_parks(self, api_key: str):
-        """Fetch the list of car parks from the API."""
-        url = "[invalid url, do not cite]
-        headers = {"Authorization": f"apikey {api_key}"}
-        try:
-            async with aiohttp.ClientSession() as
