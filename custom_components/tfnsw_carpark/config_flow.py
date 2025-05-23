@@ -180,13 +180,13 @@ class TfNSWCarparkConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Get the options flow for this handler."""
         return TfNSWCarparkOptionsFlowHandler(config_entry)
 
-class TfNSWCarparkOptionsFlowHandler(config_entries.OptionsFlow):
+class TfNSWCarparkOptionsFlowHandler(config_entries.OptionsFlowWithConfigEntry):
     """Handle options flow for TfNSW Carpark."""
 
     def __init__(self, config_entry):
         """Initialize options flow."""
-        self.config_entry = config_entry
-        self._api_key = config_entry.data.get(CONF_API_KEY)
+        super().__init__(config_entry)
+        self._api_key = self.config_entry.data.get(CONF_API_KEY)
 
     async def async_step_init(self, user_input=None):
         """Manage the options."""
@@ -253,7 +253,7 @@ class TfNSWCarparkOptionsFlowHandler(config_entries.OptionsFlow):
 
                 return self.async_create_entry(title="", data={})
             except ValueError as e:
-                _LOGGER.error(f"Error processing car parks selection: {e}")
+                _LOGGER.error(f"Error processing car parks selection: %s", e)
                 errors["base"] = "invalid_car_parks"
             except Exception as e:
                 _LOGGER.error(f"Unexpected error saving car parks: %s", e, exc_info=True)
@@ -310,7 +310,7 @@ class TfNSWCarparkOptionsFlowHandler(config_entries.OptionsFlow):
                         _LOGGER.warning(f"Failed to fetch car parks list: status={response.status}")
                         return None
         except Exception as e:
-            _LOGGER.warning(f"Error fetching car parks: {e}")
+            _LOGGER.warning(f"Error fetching car parks: %s", e)
             return None
 
     async def async_step_reauth(self, user_input=None):
