@@ -1,102 +1,129 @@
 
-import asyncio
-import logging
-from datetime import timedelta
+     import logging
+     from homeassistant.components.sensor import SensorEntity
+     from homeassistant.config_entries import ConfigEntry
+     from homeassistant.core import HomeAssistant
+     from homeassistant.helpers.entity_platform import AddEntitiesCallback
+     from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator
+     import aiohttp
+     import async_timeout
 
-import aiohttp
-import async_timeout
-from homeassistant.components.sensor import SensorEntity
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_API_KEY
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+     _LOGGER = logging.getLogger(__name__)
+     DOMAIN = "tfnsw_carpark"
 
-_LOGGER = logging.getLogger(__name__)
-DOMAIN = "tfnsw_carpark"
+     async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> bool:
+         """Set up the sensor platform."""
+         _LOGGER.debug("Entry point reached for TfNSW Carpark setup with entry ID: %s", entry.entry_id)
 
-async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
-) -> None:
-    """Set up the sensor platform."""
-    api_key = entry.data[CONF_API_KEY]
-    car_parks = entry.options.get("car_parks", [])
+         # Retrieve API key and car parks from the config entry
+         api_key = entry.data.get("api_key")
+         if not api_key:
+             _LOGGER.error("API key missing in config entry data: %s", entry.data)
+             return False
 
-    _LOGGER.debug(f"Setting up sensors with car parks: {car_parks}")
+         car_parks = entry.options.get("car_parks", [])
+         if not car_parks:
+             _LOGGER.warning("No car parks configured in options: %s, skipping setup", entry.options)
+             return True
 
-    if not car_parks:
-        _LOGGER.warning("No car parks selected in options, no sensors will be created")
-        return
+         _LOGGER.debug("Configuring coordinator for car parks: %s", car_parks)
 
-    coordinator = TfNSWCarparkCoordinator(hass, api_key)
-    await coordinator.async_config_entry_first_refresh()
+         # Create a data coordinator for fetching car park data
+         async def async_update_data():
+             """Fetch data from the TfNSW API for all configured car parks."""
+             data = {}
+             headers = {"Authorization": f"apikey {api_key}"}
+             url = "https://api.transport.nsw.gov.au/v1/carpark"
+             _LOGGER.debug("Initiating API data fetch for car parks: %s", car_parks)
+             try:
+                 async with aiohttp.ClientSession() as session:
+                     for car_park_id in car_parks:
+                         params = {"facility": str(car_park_id)}
+                         async with async_timeout.timeout(10):
+                             async with session.get(url, headers=headers, params=params) as response:
+                                 response_text = await response.text()
+                                 _LOGGER.debug("API response for car park %s: status=%d, body=%s", car_park_id, response.status, response_text)
+                                 if response.status == 200:
+                                     result = await response.json()
+                                     data[car_park_id] = result.get("occupancy", {}).get("total", "Unknown")
+                                 else:
+                                     _LOGGER.error("API fetch failed for car park %s: status=%d, body=%s", car_park_id, response.status, response_text)
+                                     data[car_park_id] = "Error"
+             except Exception as e:
+                 _LOGGER.error("Exception during API fetch for car parks: %s", e, exc_info=True)
+                 raise
+             _LOGGER.debug("Update data completed with result: %s", data)
+             return data
 
-    sensors = [TfNSWCarparkSensor(coordinator, park_id) for park_id in car_parks]
-    async_add_entities(sensors)
+         # Set up the coordinator
+         coordinator = DataUpdateCoordinator(
+             hass,
+             _LOGGER,
+             name="TfNSW Carpark Coordinator",
+             update_method=async_update_data,
+             update_interval=300,  # Update every 5 minutes
+         )
 
-class TfNSWCarparkCoordinator(DataUpdateCoordinator):
-    """Data update coordinator for TfNSW car park data."""
+         # Perform an initial refresh with detailed logging
+         _LOGGER.debug("Attempting initial refresh for coordinator with entry: %s", entry.entry_id)
+         try:
+             await coordinator.async_config_entry_first_refresh()
+             _LOGGER.debug("Coordinator initial refresh succeeded")
+         except Exception as e:
+             _LOGGER.error("Coordinator initial refresh failed: %s", e, exc_info=True)
+             return False
 
-    def __init__(self, hass, api_key):
-        super().__init__(
-            hass,
-            _LOGGER,
-            name=DOMAIN,
-            update_interval=timedelta(minutes=5),
-        )
-        self.api_key = api_key
+         # Create sensor entities for each car park
+         entities = []
+         _LOGGER.debug("Creating sensors for car parks: %s", car_parks)
+         for car_park_id in car_parks:
+             entities.append(TfNSWCarparkSensor(coordinator, entry, car_park_id))
 
-    async def _async_update_data(self):
-        """Fetch data from the TfNSW API."""
-        url = "https://api.transport.nsw.gov.au/v1/carpark"
-        headers = {"Authorization": f"apikey {self.api_key}"}
-        try:
-            async with async_timeout.timeout(10):
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(url, headers=headers) as response:
-                        if response.status != 200:
-                            raise UpdateFailed(f"API request failed with status {response.status}")
-                        data = await response.json()
-                        return data
-        except Exception as e:
-            raise UpdateFailed(f"Error fetching car park data: {e}")
+         async_add_entities(entities)
+         _LOGGER.debug("Sensors successfully added for car parks: %s", car_parks)
 
-class TfNSWCarparkSensor(SensorEntity):
-    """Representation of a TfNSW car park sensor."""
+         # Store the coordinator in hass.data for unload purposes
+         hass.data.setdefault(DOMAIN, {})
+         hass.data[DOMAIN][entry.entry_id] = coordinator
+         _LOGGER.debug("Coordinator stored for entry ID: %s", entry.entry_id)
 
-    def __init__(self, coordinator, park_id):
-        self.coordinator = coordinator
-        self._park_id = park_id
-        self._attr_unique_id = f"tfnsw_carpark_{park_id}"
-        self._attr_name = f"Park&Ride {park_id}"
-        self._attr_icon = "mdi:car-parking-lights"
+         return True
 
-    @property
-    def state(self):
-        """Return the state of the sensor."""
-        if not self.coordinator.data:
-            return None
-        park_data = self.coordinator.data.get(str(self._park_id))
-        return park_data.get("occupancy", {}).get("total") if park_data else None
+     async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+         """Unload the sensor platform."""
+         _LOGGER.debug("Unloading sensor platform for TfNSW Carpark entry: %s", entry.entry_id)
+         if DOMAIN in hass.data and entry.entry_id in hass.data[DOMAIN]:
+             coordinator = hass.data[DOMAIN].pop(entry.entry_id)
+             if coordinator._unsub_refresh is not None:
+                 coordinator._unsub_refresh()
+                 coordinator._unsub_refresh = None
+                 _LOGGER.debug("Coordinator unsubscribed for entry: %s", entry.entry_id)
+         return True
 
-    @property
-    def extra_state_attributes(self):
-        """Return the state attributes."""
-        if not self.coordinator.data:
-            return {}
-        park_data = self.coordinator.data.get(str(self._park_id))
-        if park_data:
-            return {
-                "facility_id": self._park_id,
-                "facility_name": park_data.get("facility_name"),
-                "spots": park_data.get("spots"),
-                "loop": park_data.get("occupancy", {}).get("loop"),
-                "monthlies": park_data.get("occupancy", {}).get("monthlies"),
-                "transients": park_data.get("occupancy", {}).get("transients"),
-                "last_updated": park_data.get("MessageDate"),
-            }
-        return {}
+     class TfNSWCarparkSensor(CoordinatorEntity, SensorEntity):
+         """Representation of a TfNSW Carpark sensor."""
 
-    async def async_update(self):
-        """Update the sensor state."""
-        await self.coordinator.async_request_refresh()
+         def __init__(self, coordinator: DataUpdateCoordinator, entry: ConfigEntry, car_park_id: str):
+             """Initialize the sensor."""
+             super().__init__(coordinator)
+             self._entry = entry
+             self._car_park_id = car_park_id
+             self._attr_name = f"TfNSW Carpark {car_park_id}"
+             self._attr_unique_id = f"tfnsw_carpark_{car_park_id}"
+             self._attr_device_info = {
+                 "identifiers": {(DOMAIN, f"tfnsw_carpark_{car_park_id}")},
+                 "name": f"Car Park {car_park_id}",
+                 "manufacturer": "Transport for NSW",
+             }
+             self._attr_state_class = "measurement"
+             self._attr_unit_of_measurement = "spaces"
+
+         @property
+         def state(self):
+             """Return the state of the sensor."""
+             return self.coordinator.data.get(self._car_park_id)
+
+         @property
+         def available(self):
+             """Return if the sensor is available."""
+             return self.coordinator.data.get(self._car_park_id) is not None
