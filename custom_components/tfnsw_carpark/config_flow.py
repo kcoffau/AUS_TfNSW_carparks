@@ -282,4 +282,3 @@ class TfNSWCarparkOptionsFlowHandler(config_entries.OptionsFlowWithConfigEntry):
                             mode=selector.SelectSelectorMode.DROPDOWN
                         )
                     ),
-                }
