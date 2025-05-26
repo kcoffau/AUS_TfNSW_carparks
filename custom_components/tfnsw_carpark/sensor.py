@@ -39,7 +39,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         """Fetch data from the TfNSW API for all configured car parks."""
         data = {}
         headers = {"Authorization": f"apikey {api_key}"}
-        url = "[invalid url, do not cite]
+        url = "https://api.transport.nsw.gov.au/v1/carpark"
         _LOGGER.debug("Initiating API data fetch for car parks: %s", car_parks)
         try:
             async with aiohttp.ClientSession() as session:
