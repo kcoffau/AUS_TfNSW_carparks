@@ -19,7 +19,7 @@ class TfNSWCarparkConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_validate_api_key(self, api_key: str) -> bool:
         """Validate API key by fetching a known facility."""
-        url = "[invalid url, do not cite]
+        url = "https://api.transport.nsw.gov.au/v1/carpark/facilities"
         headers = {"Authorization": f"apikey {api_key}"}
         try:
             async with aiohttp.ClientSession() as session:
@@ -91,7 +91,7 @@ class TfNSWCarparkConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_fetch_car_parks(self, api_key: str):
         """Fetch the list of car parks from the API."""
-        url = "[invalid url, do not cite]
+        url = "https://api.transport.nsw.gov.au/v1/carpark/facilities"
         headers = {"Authorization": f"apikey {api_key}"}
         try:
             async with aiohttp.ClientSession() as session:
