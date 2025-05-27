@@ -2,6 +2,12 @@
 
 This integration connects Home Assistant to the Transport for NSW Car Park API, providing real-time parking availability for Park&Ride car parks. It dynamically fetches the car park list, allowing users to select multiple car parks during setup and edit selections later via the UI.
 
+
+## Buy Me a Coffee
+Whilst I built this integration out of frustration of the poorly built iOS app by TfNSW, and it is available for free, it did have a cost associated with the build, getting advice on some of the storage of the data and calls.   If you find it useful, and can afford it, I would love if you could buy me a coffee as a token of appreciation.  Completely voluntary, and thank you in advance.   I would also welcome you to share the integration with friends, and spread the love.
+https://buymeacoffee.com/kelcoffey
+
+
 ## Installation
 1. Add this repository as a custom repository in HACS (see below).
 2. Install the "Transport for NSW Carpark Availability" integration via HACS.
@@ -38,4 +44,3 @@ For issues, please open a ticket at [GitHub Issues](https://github.com/kcoffau/A
     logs:
       custom_components.tfnsw_carpark: debug
 
-https://buymeacoffee.com/kelcoffey
