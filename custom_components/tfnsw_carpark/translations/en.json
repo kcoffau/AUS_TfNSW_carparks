@@ -1,0 +1,43 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "TfNSW Car Park Setup",
+        "description": "Enter your Transport for NSW API key. You can get one from {url}",
+        "data": {
+          "api_key": "API Key"
+        }
+      },
+      "carpark_selection": {
+        "title": "Select Car Parks",
+        "description": "Choose the car parks you want to monitor",
+        "data": {
+          "selected_carparks": "Car Parks"
+        }
+      }
+    },
+    "error": {
+      "auth": "Invalid API key",
+      "cannot_connect": "Failed to connect to TfNSW API",
+      "no_carparks_selected": "Please select at least one car park"
+    },
+    "abort": {
+      "already_configured": "TfNSW Car Park is already configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Configure Car Parks",
+        "description": "Select which car parks to monitor",
+        "data": {
+          "selected_carparks": "Car Parks"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to TfNSW API",
+      "no_carparks_selected": "Please select at least one car park"
+    }
+  }
+}
