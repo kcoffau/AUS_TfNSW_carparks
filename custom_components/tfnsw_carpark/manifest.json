@@ -1,14 +1,12 @@
 {
   "domain": "tfnsw_carpark",
-  "name": "Transport for NSW Carpark Availability",
+  "name": "Transport for NSW Carpark Availability - Park & Ride",
   "codeowners": ["@kcoffau"],
   "config_flow": true,
   "dependencies": [],
   "documentation": "https://github.com/kcoffau/AUS_TfNSW_carparks",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/kcoffau/AUS_TfNSW_carparks/issues",
-  "requirements": ["aiohttp>=3.8.0", "voluptuous", "async-timeout"],
-  "integration_type": "hub",
-  "version": "1.0.8",
-  "after_dependencies": ["sensor"]
+  "requirements": ["aiohttp>=3.8.0"],
+  "version": "1.0.9"
 }
