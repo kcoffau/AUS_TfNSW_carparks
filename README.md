@@ -4,7 +4,7 @@ This integration connects Home Assistant to the Transport for NSW Car Park API, 
 
 
 ## Buy Me a Coffee
-Whilst I built this integration out of frustration of the poorly built iOS app by TfNSW, and it is available for free, it did have a cost associated with the build, getting advice on some of the storage of the data and calls.   If you find it useful, and can afford it, I would love if you could buy me a coffee as a token of appreciation.  Completely voluntary, and thank you in advance.   I would also welcome you to share the integration with friends, and spread the love.
+Whilst I built this integration out of frustration of the poorly built iOS app by NSW Govt, and it is available for free, it did have a cost associated with the build, getting advice on some of the storage of the data and calls.   If you find it useful, and can afford it, I would love if you could buy me a coffee as a token of appreciation.  Completely voluntary, and thank you in advance.   I would also welcome you to share the integration with friends, and spread the love.
 https://buymeacoffee.com/kelcoffey
 
 
