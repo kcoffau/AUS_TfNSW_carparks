@@ -1,5 +1,5 @@
 {
-  "domain": "tfnsw_carpark",
+  "domain": "aus_tfnsw_carparks",
   "name": "Transport for NSW Carpark Availability - Park & Ride",
   "codeowners": ["@kcoffau"],
   "config_flow": true,
