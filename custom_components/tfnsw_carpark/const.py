@@ -1,5 +1,5 @@
 """Constants for the TfNSW Car Park integration."""
-DOMAIN = "tfnsw_carpark"
+DOMAIN = "aus_tfnsw_carparks"
 
 API_BASE_URL = "https://api.transport.nsw.gov.au/v1/carpark"
 
